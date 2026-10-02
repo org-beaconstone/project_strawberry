@@ -13,6 +13,8 @@ from strawberry.logging.v2 import log_event  # logging API v2, structured fields
 RETRY_LOG_FAILURE = "RETRY_LOG_FAILURE"
 
 
+# Retry_Log_Failure: emits error_code=RETRY_LOG_FAILURE once retries
+# against the usage ledger are exhausted.
 def log_retry_log_failure(
     service: str,
     sink: str,
