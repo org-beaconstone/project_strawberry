@@ -12,6 +12,7 @@ is captured and searchable.
 import time
 
 from strawberry.logging.v2 import log_event  # logging API v2, structured fields
+from strawberry_errors import log_retry_log_failure
 
 
 MAX_RETRIES = 3
@@ -27,11 +28,13 @@ def submit_usage_record(customer_id: str, usage_record: dict) -> bool:
     originating usage record.
     """
     attempt = 0
+    last_error = None
     while attempt < MAX_RETRIES:
         attempt += 1
         try:
             return _send_to_billing_pipeline(customer_id, usage_record)
         except BillingPipelineError as exc:
+            last_error = exc
             log_event(
                 level="WARN",
                 message="billing usage submit failed, retrying",
@@ -42,12 +45,14 @@ def submit_usage_record(customer_id: str, usage_record: dict) -> bool:
             )
             time.sleep(RETRY_BACKOFF_SECONDS * attempt)
 
-    log_event(
-        level="ERROR",
-        message="billing usage submit failed after max retries",
-        retry_count=attempt,
+    log_retry_log_failure(
+        service="usage-metering-service",
+        sink="usage_ledger_write",
         customer_id=customer_id,
-        usage_record_id=usage_record.get("id"),
+        event_id=usage_record.get("id"),
+        retry_attempts=attempt,
+        max_retries=MAX_RETRIES,
+        last_error=str(last_error),
     )
     return False
 
